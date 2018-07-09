@@ -4,10 +4,15 @@ from collections import namedtuple
 from itertools import count
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
+from functools import reduce
+import operator
 
 import gym
 import numpy as np
 from gym import wrappers
+
+import gym_duckietown
+from gym_duckietown.envs import SimpleSimEnv
 
 import torch
 from ddpg import DDPG
@@ -18,9 +23,9 @@ from param_noise import AdaptiveParamNoiseSpec, ddpg_distance_metric
 from replay_memory import ReplayMemory, Transition
 
 parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
-parser.add_argument('--algo', default='NAF',
+parser.add_argument('--algo', default='DDPG',
                     help='algorithm to use: DDPG | NAF')
-parser.add_argument('--env-name', default="HalfCheetah-v2",
+parser.add_argument('--env-name', default="SimpleSim-v0",
                     help='name of the environment to run')
 parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
                     help='discount factor for reward (default: 0.99)')
@@ -48,6 +53,8 @@ parser.add_argument('--updates_per_step', type=int, default=5, metavar='N',
                     help='model updates per simulator step (default: 5)')
 parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 1000000)')
+parser.add_argument('--num-stack', type=int, default=1,
+                    help='number of frames to stack')    
 args = parser.parse_args()
 
 env = NormalizedActions(gym.make(args.env_name))
@@ -57,12 +64,19 @@ writer = SummaryWriter()
 env.seed(args.seed)
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
+
+obs_shape = env.observation_space.shape
+obs_shape = (obs_shape[0] * args.num_stack, *obs_shape[1:])
+
+if len(env.observation_space.shape) == 3:
+    image_input = True
+
 if args.algo == "NAF":
     agent = NAF(args.gamma, args.tau, args.hidden_size,
-                      env.observation_space.shape[0], env.action_space)
+                      obs_shape, env.action_space, image_input)
 else:
     agent = DDPG(args.gamma, args.tau, args.hidden_size,
-                      env.observation_space.shape[0], env.action_space)
+                      obs_shape, env.action_space, image_input)
 
 memory = ReplayMemory(args.replay_size)
 

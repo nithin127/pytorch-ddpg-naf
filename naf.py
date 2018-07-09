@@ -84,10 +84,15 @@ class Policy(nn.Module):
 
 class NAF:
 
-    def __init__(self, gamma, tau, hidden_size, num_inputs, action_space):
+    def __init__(self, gamma, tau, hidden_size, obs_shape, action_space, image_input):
         self.action_space = action_space
-        self.num_inputs = num_inputs
+        self.obs_shape = obs_shape
         
+        if image_input:
+            self.num_inputs = obs_shape[0]
+        else:
+            self.num_inputs = obs_shape[2]
+
         self.model = Policy(hidden_size, num_inputs, action_space)
         self.target_model = Policy(hidden_size, num_inputs, action_space)
         self.optimizer = Adam(self.model.parameters(), lr=1e-3)

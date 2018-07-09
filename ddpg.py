@@ -1,5 +1,6 @@
 import sys
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import Adam
@@ -46,12 +47,29 @@ nn.LayerNorm = LayerNorm
 
 
 class Actor(nn.Module):
-    def __init__(self, hidden_size, num_inputs, action_space):
+    def __init__(self, hidden_size, num_inputs, action_space, image_input):
         super(Actor, self).__init__()
         self.action_space = action_space
+        self.image_input = image_input
         num_outputs = action_space.shape[0]
 
-        self.linear1 = nn.Linear(num_inputs, hidden_size)
+        if image_input:
+            self.conv1 = nn.Conv2d(num_inputs[2], 32, 8, stride=2)
+            self.conv1_drop = torch.nn.Dropout2d(p=0.2)
+
+            self.conv2 = nn.Conv2d(32, 32, 4, stride=2)
+            self.conv2_drop = torch.nn.Dropout2d(p=0.2)
+
+            self.conv3 = nn.Conv2d(32, 32, 4, stride=2)
+            self.conv3_drop = torch.nn.Dropout2d(p=0.2)
+
+            self.conv4 = nn.Conv2d(32, 32, 4, stride=1)
+
+            self.linear1_drop = nn.Dropout(p=0.5)
+            self.linear1 = nn.Linear(32 * 9 * 14, hidden_size)
+        else:
+            self.linear1 = nn.Linear(num_inputs[0], hidden_size)
+
         self.ln1 = nn.LayerNorm(hidden_size)
 
         self.linear2 = nn.Linear(hidden_size, hidden_size)
@@ -62,7 +80,25 @@ class Actor(nn.Module):
         self.mu.bias.data.mul_(0.1)
 
     def forward(self, inputs):
-        x = inputs
+        if self.image_input:
+            inputs = np.swapaxes(np.swapaxes(inputs, 1, 3), 3, 2)
+            x = self.conv1(inputs)
+            #x = self.conv1_drop(x)
+            x = F.leaky_relu(x)
+
+            x = self.conv2(x)
+            #x = self.conv2_drop(x)
+            x = F.leaky_relu(x)
+
+            x = self.conv3(x)
+            #x = self.conv3_drop(x)
+            x = F.leaky_relu(x)
+
+            x = self.conv4(x)
+            x = F.leaky_relu(x)
+
+            x = x.view(-1, 32 * 9 * 14)
+
         x = self.linear1(x)
         x = self.ln1(x)
         x = F.relu(x)
@@ -73,15 +109,32 @@ class Actor(nn.Module):
         return mu
 
 class Critic(nn.Module):
-    def __init__(self, hidden_size, num_inputs, action_space):
+    def __init__(self, hidden_size, num_inputs, action_space, image_input):
         super(Critic, self).__init__()
         self.action_space = action_space
+        self.image_input = image_input
         num_outputs = action_space.shape[0]
 
-        self.linear1 = nn.Linear(num_inputs, hidden_size)
+        if image_input:
+            self.conv1 = nn.Conv2d(num_inputs[2], 32, 8, stride=2)
+            self.conv1_drop = torch.nn.Dropout2d(p=0.2)
+
+            self.conv2 = nn.Conv2d(32, 32, 4, stride=2)
+            self.conv2_drop = torch.nn.Dropout2d(p=0.2)
+
+            self.conv3 = nn.Conv2d(32, 32, 4, stride=2)
+            self.conv3_drop = torch.nn.Dropout2d(p=0.2)
+
+            self.conv4 = nn.Conv2d(32, 32, 4, stride=1)
+
+            self.linear1_drop = nn.Dropout(p=0.5)
+            self.linear1 = nn.Linear(32 * 9 * 14, hidden_size)
+        else:
+            self.linear1 = nn.Linear(num_inputs[0], hidden_size)
+
         self.ln1 = nn.LayerNorm(hidden_size)
 
-        self.linear2 = nn.Linear(hidden_size+num_outputs, hidden_size)
+        self.linear2 = nn.Linear(hidden_size, hidden_size)
         self.ln2 = nn.LayerNorm(hidden_size)
 
         self.V = nn.Linear(hidden_size, 1)
@@ -89,12 +142,28 @@ class Critic(nn.Module):
         self.V.bias.data.mul_(0.1)
 
     def forward(self, inputs, actions):
-        x = inputs
+        if self.image_input:
+            inputs = np.swapaxes(np.swapaxes(inputs, 1, 3), 3, 2)
+            x = self.conv1(inputs)
+            #x = self.conv1_drop(x)
+            x = F.leaky_relu(x)
+
+            x = self.conv2(x)
+            #x = self.conv2_drop(x)
+            x = F.leaky_relu(x)
+
+            x = self.conv3(x)
+            #x = self.conv3_drop(x)
+            x = F.leaky_relu(x)
+
+            x = self.conv4(x)
+            x = F.leaky_relu(x)
+
+            x = x.view(-1, 32 * 9 * 14)
+
         x = self.linear1(x)
         x = self.ln1(x)
         x = F.relu(x)
-
-        x = torch.cat((x, actions), 1)
         x = self.linear2(x)
         x = self.ln2(x)
         x = F.relu(x)
@@ -102,18 +171,18 @@ class Critic(nn.Module):
         return V
 
 class DDPG(object):
-    def __init__(self, gamma, tau, hidden_size, num_inputs, action_space):
+    def __init__(self, gamma, tau, hidden_size, obs_shape, action_space, image_input):
 
-        self.num_inputs = num_inputs
+        self.obs_shape = obs_shape
         self.action_space = action_space
-
-        self.actor = Actor(hidden_size, self.num_inputs, self.action_space)
-        self.actor_target = Actor(hidden_size, self.num_inputs, self.action_space)
-        self.actor_perturbed = Actor(hidden_size, self.num_inputs, self.action_space)
+        
+        self.actor = Actor(hidden_size, self.obs_shape, self.action_space, image_input)
+        self.actor_target = Actor(hidden_size, self.obs_shape, self.action_space, image_input)
+        self.actor_perturbed = Actor(hidden_size, self.obs_shape, self.action_space, image_input)
         self.actor_optim = Adam(self.actor.parameters(), lr=1e-4)
 
-        self.critic = Critic(hidden_size, self.num_inputs, self.action_space)
-        self.critic_target = Critic(hidden_size, self.num_inputs, self.action_space)
+        self.critic = Critic(hidden_size, self.obs_shape, self.action_space, image_input)
+        self.critic_target = Critic(hidden_size, self.obs_shape, self.action_space, image_input)
         self.critic_optim = Adam(self.critic.parameters(), lr=1e-3)
 
         self.gamma = gamma
