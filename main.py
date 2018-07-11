@@ -114,11 +114,13 @@ for i_episode in range(args.num_episodes):
         memory.push(state, action, mask, next_state, reward)
 
         state = next_state
+        print("Episode: {}, total_numsteps: {}".format(i_episode, total_numsteps))
 
         if len(memory) > args.batch_size:
             for _ in range(args.updates_per_step):
                 transitions = memory.sample(args.batch_size)
                 batch = Transition(*zip(*transitions))
+                print("Update no. {}, for episode {}".format(_+1, i_episode))
 
                 value_loss, policy_loss = agent.update_parameters(batch)
 
