@@ -55,6 +55,8 @@ parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 1000000)')
 parser.add_argument('--num-stack', type=int, default=1,
                     help='number of frames to stack')    
+parser.add_argument('--cuda', type=bool, default=False,
+                    help='To train using GPU or not')    
 args = parser.parse_args()
 
 env = NormalizedActions(gym.make(args.env_name))
@@ -62,7 +64,13 @@ env = NormalizedActions(gym.make(args.env_name))
 writer = SummaryWriter()
 
 env.seed(args.seed)
-torch.manual_seed(args.seed)
+if torch.cuda.is_available():
+    args.cuda = True
+
+if args.cuda:
+    torch.cuda.manual_seed(args.seed)
+
+
 np.random.seed(args.seed)
 
 obs_shape = env.observation_space.shape
@@ -78,6 +86,9 @@ else:
     agent = DDPG(args.gamma, args.tau, args.hidden_size,
                       obs_shape, env.action_space, image_input)
 
+if args.cuda:
+    agent.cuda()
+
 memory = ReplayMemory(args.replay_size)
 
 ounoise = OUNoise(env.action_space.shape[0]) if args.ou_noise else None
@@ -90,6 +101,8 @@ updates = 0
 
 for i_episode in range(args.num_episodes):
     state = torch.Tensor([env.reset()])
+    if args.cuda:
+        state.cuda()
 
     if args.ou_noise: 
         ounoise.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
@@ -110,6 +123,11 @@ for i_episode in range(args.num_episodes):
         mask = torch.Tensor([not done])
         next_state = torch.Tensor([next_state])
         reward = torch.Tensor([reward])
+        if args.cuda:
+            action.cuda()
+            mask.cuda()
+            next_state.cuda()
+            reward.cuda()
 
         memory.push(state, action, mask, next_state, reward)
 
@@ -146,6 +164,8 @@ for i_episode in range(args.num_episodes):
     rewards.append(episode_reward)
     if i_episode % 10 == 0:
         state = torch.Tensor([env.reset()])
+        if args.cuda:
+            state.cuda()
         episode_reward = 0
         while True:
             action = agent.select_action(state)
@@ -154,6 +174,8 @@ for i_episode in range(args.num_episodes):
             episode_reward += reward
 
             next_state = torch.Tensor([next_state])
+            if args.cuda():
+                next_state.cuda()
 
             state = next_state
             if done:
