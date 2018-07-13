@@ -55,8 +55,8 @@ parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 1000000)')
 parser.add_argument('--num-stack', type=int, default=1,
                     help='number of frames to stack')    
-parser.add_argument('--cuda', type=bool, default=False,
-                    help='To train using GPU or not')    
+parser.add_argument('--resume-training', type=bool, default=False,
+                    help='To resume training or not')    
 args = parser.parse_args()
 
 env = NormalizedActions(gym.make(args.env_name))
@@ -65,11 +65,11 @@ writer = SummaryWriter()
 
 env.seed(args.seed)
 if torch.cuda.is_available():
-    args.cuda = True
-
-if args.cuda:
+    device = torch.device("cuda:0")
     torch.cuda.manual_seed(args.seed)
-
+else:
+    device = torch.device("cpu")
+    torch.manual_seed(args.seed)
 
 np.random.seed(args.seed)
 
@@ -82,12 +82,27 @@ if len(env.observation_space.shape) == 3:
 if args.algo == "NAF":
     agent = NAF(args.gamma, args.tau, args.hidden_size,
                       obs_shape, env.action_space, image_input)
+    if torch.cuda.device_count() > 1:
+        agent.model = nn.DataParallel(agent.model)
+        agent.target_model = nn.DataParallel(agent.target_model)
+    agent.model.to(device)
+    agent.target_model.to(device)
 else:
     agent = DDPG(args.gamma, args.tau, args.hidden_size,
                       obs_shape, env.action_space, image_input)
+    if torch.cuda.device_count() > 1:
+        import torch.nn as nn
+        agent.actor = nn.DataParallel(agent.actor)
+        agent.actor_target = nn.DataParallel(agent.actor_target)
+        agent.actor_perturbed = nn.DataParallel(agent.actor_perturbed)
+        agent.critic = nn.DataParallel(agent.critic)
+        agent.critic_target = nn.DataParallel(agent.critic_target)
+    agent.actor.to(device)
+    agent.actor_target.to(device)
+    agent.actor_perturbed.to(device)
+    agent.critic.to(device)
+    agent.critic_target.to(device)
 
-if args.cuda:
-    agent.cuda()
 
 memory = ReplayMemory(args.replay_size)
 
@@ -100,10 +115,8 @@ total_numsteps = 0
 updates = 0
 
 for i_episode in range(args.num_episodes):
-    state = torch.Tensor([env.reset()])
-    if args.cuda:
-        state.cuda()
-
+    state = torch.Tensor([env.reset()]).to(device)
+    
     if args.ou_noise: 
         ounoise.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
                                                                       i_episode) / args.exploration_end + args.final_noise_scale
@@ -119,16 +132,11 @@ for i_episode in range(args.num_episodes):
         total_numsteps += 1
         episode_reward += reward
 
-        action = torch.Tensor(action)
-        mask = torch.Tensor([not done])
-        next_state = torch.Tensor([next_state])
-        reward = torch.Tensor([reward])
-        if args.cuda:
-            action.cuda()
-            mask.cuda()
-            next_state.cuda()
-            reward.cuda()
-
+        action = torch.Tensor(action).to(device)
+        mask = torch.Tensor([not done]).to(device)
+        next_state = torch.Tensor([next_state]).to(device)
+        reward = torch.Tensor([reward]).to(device)
+        
         memory.push(state, action, mask, next_state, reward)
 
         state = next_state
@@ -163,9 +171,7 @@ for i_episode in range(args.num_episodes):
 
     rewards.append(episode_reward)
     if i_episode % 10 == 0:
-        state = torch.Tensor([env.reset()])
-        if args.cuda:
-            state.cuda()
+        state = torch.Tensor([env.reset()]).to(device)
         episode_reward = 0
         while True:
             action = agent.select_action(state)
@@ -173,15 +179,14 @@ for i_episode in range(args.num_episodes):
             next_state, reward, done, _ = env.step(action.numpy()[0])
             episode_reward += reward
 
-            next_state = torch.Tensor([next_state])
-            if args.cuda():
-                next_state.cuda()
-
+            next_state = torch.Tensor([next_state]).to(device)
+            
             state = next_state
             if done:
                 break
 
         writer.add_scalar('reward/test', episode_reward, i_episode)
+        agent.save_model(args.env_name)
 
         rewards.append(episode_reward)
         print("Episode: {}, total numsteps: {}, reward: {}, average reward: {}".format(i_episode, total_numsteps, rewards[-1], np.mean(rewards[-10:])))
