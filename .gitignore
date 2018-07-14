@@ -1,2 +1,5 @@
 __pycache__
 runs
+bin
+core
+xvfb.log
