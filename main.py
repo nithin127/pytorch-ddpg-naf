@@ -177,7 +177,7 @@ for i_episode in range(args.num_episodes):
         while True:
             action = agent.select_action(state)
 
-            next_state, reward, done, _ = env.step(action.numpy()[0])
+            next_state, reward, done, _ = env.step(action.cpu().numpy()[0])
             episode_reward += reward
 
             next_state = torch.Tensor([next_state]).to(device)
