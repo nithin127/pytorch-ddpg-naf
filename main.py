@@ -129,7 +129,7 @@ for i_episode in range(args.num_episodes):
     while True:
         action_noise = torch.Tensor(ounoise.noise()).to(device)
         action = agent.select_action(state, action_noise, param_noise)
-        next_state, reward, done, _ = env.step(action.numpy()[0])
+        next_state, reward, done, _ = env.step(action.cpu().numpy()[0])
         total_numsteps += 1
         episode_reward += reward
 
