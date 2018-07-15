@@ -147,8 +147,7 @@ for i_episode in range(args.num_episodes):
             for _ in range(args.updates_per_step):
                 transitions = memory.sample(args.batch_size)
                 batch = Transition(*zip(*transitions))
-                print("Update no. {}, for episode {}".format(_+1, i_episode))
-
+                
                 value_loss, policy_loss = agent.update_parameters(batch)
 
                 writer.add_scalar('loss/value', value_loss, updates)
