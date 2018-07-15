@@ -1,6 +1,5 @@
 import sys
 
-import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import Adam
@@ -81,7 +80,7 @@ class Actor(nn.Module):
 
     def forward(self, inputs):
         if self.image_input:
-            inputs = np.swapaxes(np.swapaxes(inputs, 1, 3), 3, 2)
+            inputs = inputs.permute((0,3,1,2))
             x = self.conv1(inputs)
             #x = self.conv1_drop(x)
             x = F.leaky_relu(x)
@@ -143,7 +142,7 @@ class Critic(nn.Module):
 
     def forward(self, inputs, actions):
         if self.image_input:
-            inputs = np.swapaxes(np.swapaxes(inputs, 1, 3), 3, 2)
+            inputs = inputs.permute((0,3,1,2))
             x = self.conv1(inputs)
             #x = self.conv1_drop(x)
             x = F.leaky_relu(x)
