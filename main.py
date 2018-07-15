@@ -133,7 +133,7 @@ for i_episode in range(args.num_episodes):
         total_numsteps += 1
         episode_reward += reward
 
-        action = torch.Tensor(action).to(device)
+        #action = torch.Tensor(action).to(device)
         mask = torch.Tensor([not done]).to(device)
         next_state = torch.Tensor([next_state]).to(device)
         reward = torch.Tensor([reward]).to(device)
