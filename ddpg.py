@@ -202,7 +202,7 @@ class DDPG(object):
         mu = mu.data
 
         if action_noise is not None:
-            mu += torch.Tensor(action_noise.noise())
+            mu += action_noise
 
         return mu.clamp(-1, 1)
 
@@ -250,7 +250,10 @@ class DDPG(object):
             if 'ln' in name: 
                 pass 
             param = params[name]
-            param += torch.randn(param.shape) * param_noise.current_stddev
+            if param.is_cuda:
+                param += (torch.randn(param.shape) * param_noise.current_stddev).cuda()
+            else:
+                param += torch.randn(param.shape) * param_noise.current_stddev
 
     def save_model(self, env_name, suffix="", actor_path=None, critic_path=None):
         if not os.path.exists('models/'):
