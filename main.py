@@ -1,3 +1,4 @@
+import os
 import argparse
 import math
 from collections import namedtuple
@@ -20,7 +21,7 @@ from normalized_actions import NormalizedActions
 from ounoise import OUNoise
 from param_noise import AdaptiveParamNoiseSpec, ddpg_distance_metric
 from replay_memory import ReplayMemory, Transition
-from logging import Logger
+from logger_sc import Logger
 
 parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
 parser.add_argument('--algo', default='DDPG',

@@ -8,8 +8,9 @@ from os import listdir
 from os.path import isfile, join
 from shutil import copyfile, rmtree
 
-import myTorch
-from myTorch.utils import create_folder
+def create_folder(folder):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
 
 class Logger(object):
     """Logging in tensorboard without tensorflow ops."""
