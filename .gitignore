@@ -3,3 +3,5 @@ runs
 bin
 core
 xvfb.log
+script.sh
+slurm*.out
