@@ -270,6 +270,6 @@ class DDPG(object):
     def load_model(self, actor_path, critic_path):
         print('Loading models from {} and {}'.format(actor_path, critic_path))
         if actor_path is not None:
-            self.actor.load_state_dict(torch.load(actor_path))
+            self.actor.load_state_dict(torch.load(actor_path, map_location= lambda storage, loc: storage))
         if critic_path is not None: 
-            self.critic.load_state_dict(torch.load(critic_path))
+            self.critic.load_state_dict(torch.load(critic_path, map_location= lambda storage, loc: storage))

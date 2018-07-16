@@ -31,12 +31,6 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
                     help='discount factor for reward (default: 0.99)')
 parser.add_argument('--tau', type=float, default=0.001, metavar='G',
                     help='discount factor for model (default: 0.001)')
-parser.add_argument('--ou_noise', type=bool, default=True)
-parser.add_argument('--param_noise', type=bool, default=False)
-parser.add_argument('--noise_scale', type=float, default=0.3, metavar='G',
-                    help='initial noise scale (default: 0.3)')
-parser.add_argument('--final_noise_scale', type=float, default=0.3, metavar='G',
-                    help='final noise scale (default: 0.3)')
 parser.add_argument('--exploration_end', type=int, default=100, metavar='N',
                     help='number of episodes with noise (default: 100)')
 parser.add_argument('--seed', type=int, default=4, metavar='N',
@@ -51,12 +45,8 @@ parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
                     help='number of episodes (default: 128)')
 parser.add_argument('--updates_per_step', type=int, default=5, metavar='N',
                     help='model updates per simulator step (default: 5)')
-parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
-                    help='size of replay buffer (default: 1000000)')
 parser.add_argument('--num-stack', type=int, default=1,
                     help='number of frames to stack')    
-parser.add_argument('--resume-training', type=bool, default=False,
-                    help='To resume training or not')
 parser.add_argument('--model-suffix', default="",
                     help='To resume training or not')
 args = parser.parse_args()
@@ -106,37 +96,17 @@ else:
     agent.critic_target.to(device)
 
 
-memory = ReplayMemory(args.replay_size)
+end_str = "_{}_{}".format(args.env_name, args.model_suffix)
+agent.load_model("models/ddpg_actor" + end_str, "models/ddpg_critic" + end_str)
 
-ounoise = OUNoise(env.action_space.shape[0]) if args.ou_noise else None
-param_noise = AdaptiveParamNoiseSpec(initial_stddev=0.05, 
-    desired_action_stddev=args.noise_scale, adaptation_coefficient=1.05) if args.param_noise else None
-
-rewards = []
-total_numsteps = 0
-updates = 0
-
-if args.resume_training:
-    end_str = "_{}_{}".format(args.env_name, args.model_suffix)
-    agent.load_model("models/ddpg_actor" + end_str, "models/ddpg_critic" + end_str)
-
-for i_episode in range(args.num_episodes):
-    state = torch.Tensor([env.reset()]).to(device)
-    
-    if args.ou_noise: 
-        ounoise.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
-                                                                      i_episode) / args.exploration_end + args.final_noise_scale
-        ounoise.reset()
-
-    if args.param_noise and args.algo == "DDPG":
-        agent.perturb_actor_parameters(param_noise)
-
+while True:
     episode_reward = 0
+    state = torch.Tensor([env.reset()]).to(device)
+    env.render()
     while True:
-        action_noise = torch.Tensor(ounoise.noise()).to(device)
-        action = agent.select_action(state, action_noise, param_noise)
+        action = agent.select_action(state, None, None)
         next_state, reward, done, _ = env.step(action.cpu().numpy()[0])
-        total_numsteps += 1
+        env.render()
         episode_reward += reward
 
         #action = torch.Tensor(action).to(device)
@@ -144,57 +114,11 @@ for i_episode in range(args.num_episodes):
         next_state = torch.Tensor([next_state]).to(device)
         reward = torch.Tensor([reward]).to(device)
         
-        memory.push(state, action, mask, next_state, reward)
-
         state = next_state
-        print("Episode: {}, total_numsteps: {}".format(i_episode, total_numsteps))
+        print("Reward: {}; Episode reward: {}".format(reward, episode_reward))
 
-        if len(memory) > args.batch_size:
-            for _ in range(args.updates_per_step):
-                transitions = memory.sample(args.batch_size)
-                batch = Transition(*zip(*transitions))
-                
-                value_loss, policy_loss = agent.update_parameters(batch)
-
-                writer.add_scalar('loss/value', value_loss, updates)
-                writer.add_scalar('loss/policy', policy_loss, updates)
-
-                updates += 1
         if done:
             break
 
-    writer.add_scalar('reward/train', episode_reward, i_episode)
-
-    # Update param_noise based on distance metric
-    if args.param_noise:
-        episode_transitions = memory.memory[memory.position-t:memory.position]
-        states = torch.cat([transition[0] for transition in episode_transitions], 0)
-        unperturbed_actions = agent.select_action(states, None, None)
-        perturbed_actions = torch.cat([transition[1] for transition in episode_transitions], 0)
-
-        ddpg_dist = ddpg_distance_metric(perturbed_actions.numpy(), unperturbed_actions.numpy())
-        param_noise.adapt(ddpg_dist)
-
-    rewards.append(episode_reward)
-    if i_episode % 10 == 0:
-        state = torch.Tensor([env.reset()]).to(device)
-        episode_reward = 0
-        while True:
-            action = agent.select_action(state)
-
-            next_state, reward, done, _ = env.step(action.cpu().numpy()[0])
-            episode_reward += reward
-
-            next_state = torch.Tensor([next_state]).to(device)
-            
-            state = next_state
-            if done:
-                break
-
-        writer.add_scalar('reward/test', episode_reward, i_episode)
-        agent.save_model(args.env_name, args.model_suffix)
-
-        rewards.append(episode_reward)
-        print("Episode: {}, total numsteps: {}, reward: {}, average reward: {}".format(i_episode, total_numsteps, rewards[-1], np.mean(rewards[-10:])))
     
 env.close()
