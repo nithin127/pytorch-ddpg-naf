@@ -120,9 +120,12 @@ ounoise = OUNoise(env.action_space.shape[0]) if args.ou_noise else None
 param_noise = AdaptiveParamNoiseSpec(initial_stddev=0.05, 
     desired_action_stddev=args.noise_scale, adaptation_coefficient=1.05) if args.param_noise else None
 
-rewards = []
+rewards_train = []
+rewards_test = []
 total_numsteps = 0
 updates = 0
+policy_loss_list = []
+value_loss_list = []
 
 if args.resume_training:
     end_str = "_{}_{}".format(args.env_name, args.model_suffix)
@@ -163,14 +166,17 @@ for i_episode in range(args.num_episodes):
                 batch = Transition(*zip(*transitions))
                 
                 value_loss, policy_loss = agent.update_parameters(batch)
+                value_loss_list.append(value_loss)
+                policy_loss_list.append(policy_loss)
                 updates += 1
 
-                logger.log_scalar_rl("loss/value", value_loss, args.sliding_window_size, [i_episode, total_numsteps, updates])
-                logger.log_scalar_rl("loss/policy", policy_loss, args.sliding_window_size, [i_episode, total_numsteps, updates])                
+                logger.log_scalar_rl("loss/value", value_loss_list, args.sliding_window_size, [i_episode, total_numsteps, updates])
+                logger.log_scalar_rl("loss/policy", policy_loss_list, args.sliding_window_size, [i_episode, total_numsteps, updates])                
         if done:
             break
 
-    logger.log_scalar_rl("reward/train", episode_reward, args.sliding_window_size, [i_episode, total_numsteps, updates])
+    rewards_train.append(episode_reward)
+    logger.log_scalar_rl("reward/train", rewards_train, args.sliding_window_size, [i_episode, total_numsteps, updates])
     
     # Update param_noise based on distance metric
     if args.param_noise:
@@ -182,7 +188,6 @@ for i_episode in range(args.num_episodes):
         ddpg_dist = ddpg_distance_metric(perturbed_actions.numpy(), unperturbed_actions.numpy())
         param_noise.adapt(ddpg_dist)
 
-    rewards.append(episode_reward)
     if i_episode % 10 == 0:
         state = torch.Tensor([env.reset()]).to(device)
         episode_reward = 0
@@ -198,10 +203,11 @@ for i_episode in range(args.num_episodes):
             if done:
                 break
 
-        logger.log_scalar_rl("reward/test", episode_reward, args.sliding_window_size, [i_episode, total_numsteps, updates])
+        rewards_test.append(episode_reward)
+        print("Episode: {}, total numsteps: {}, reward: {}, average reward: {}".format(i_episode, total_numsteps, rewards_test[-1], np.mean(rewards[-10:])))
+
+        logger.log_scalar_rl("reward/test", rewards_test, args.sliding_window_size, [i_episode, total_numsteps, updates])
         agent.save_model(args.env_name, args.model_suffix)
 
-        rewards.append(episode_reward)
-        print("Episode: {}, total numsteps: {}, reward: {}, average reward: {}".format(i_episode, total_numsteps, rewards[-1], np.mean(rewards[-10:])))
-    
+        
 env.close()
