@@ -5,3 +5,4 @@ core
 xvfb.log
 script.sh
 slurm*.out
+logs

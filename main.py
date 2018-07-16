@@ -3,7 +3,6 @@ import math
 from collections import namedtuple
 from itertools import count
 from tqdm import tqdm
-from tensorboardX import SummaryWriter
 from functools import reduce
 import operator
 
@@ -21,6 +20,7 @@ from normalized_actions import NormalizedActions
 from ounoise import OUNoise
 from param_noise import AdaptiveParamNoiseSpec, ddpg_distance_metric
 from replay_memory import ReplayMemory, Transition
+from logging import Logger
 
 parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
 parser.add_argument('--algo', default='DDPG',
@@ -59,13 +59,20 @@ parser.add_argument('--resume-training', type=bool, default=False,
                     help='To resume training or not')
 parser.add_argument('--model-suffix', default="",
                     help='To resume training or not')
+parser.add_argument('--sliding-window-size', type=int, default=30,
+                    help='number of values to compute average over')    
 args = parser.parse_args()
 
+
+
+logger_dir = os.path.join("logs", "{}_{}_{}".format(args.env_name, args.algo, args.model_suffix))
+if not os.path.exists(logger_dir):
+    os.makedirs(logger_dir)
+logger = Logger(logger_dir)
+
 env = NormalizedActions(gym.make(args.env_name))
-
-writer = SummaryWriter()
-
 env.seed(args.seed)
+
 if torch.cuda.is_available():
     device = torch.device("cuda:0")
     torch.cuda.manual_seed(args.seed)
@@ -155,16 +162,15 @@ for i_episode in range(args.num_episodes):
                 batch = Transition(*zip(*transitions))
                 
                 value_loss, policy_loss = agent.update_parameters(batch)
-
-                writer.add_scalar('loss/value', value_loss, updates)
-                writer.add_scalar('loss/policy', policy_loss, updates)
-
                 updates += 1
+
+                logger.log_scalar_rl("loss/value", value_loss, args.sliding_window_size, [i_episode, total_numsteps, updates])
+                logger.log_scalar_rl("loss/policy", policy_loss, args.sliding_window_size, [i_episode, total_numsteps, updates])                
         if done:
             break
 
-    writer.add_scalar('reward/train', episode_reward, i_episode)
-
+    logger.log_scalar_rl("reward/train", episode_reward, args.sliding_window_size, [i_episode, total_numsteps, updates])
+    
     # Update param_noise based on distance metric
     if args.param_noise:
         episode_transitions = memory.memory[memory.position-t:memory.position]
@@ -191,7 +197,7 @@ for i_episode in range(args.num_episodes):
             if done:
                 break
 
-        writer.add_scalar('reward/test', episode_reward, i_episode)
+        logger.log_scalar_rl("reward/test", episode_reward, args.sliding_window_size, [i_episode, total_numsteps, updates])
         agent.save_model(args.env_name, args.model_suffix)
 
         rewards.append(episode_reward)
