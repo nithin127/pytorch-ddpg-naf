@@ -58,7 +58,7 @@ parser.add_argument('--num-stack', type=int, default=1,
                     help='number of frames to stack')    
 parser.add_argument('--resume-training', type=bool, default=False,
                     help='To resume training or not')
-parser.add_argument('--model-suffix', default="",
+parser.add_argument('--suffix', default="",
                     help='To resume training or not')
 parser.add_argument('--sliding-window-size', type=int, default=30,
                     help='number of values to compute average over')    
@@ -66,7 +66,7 @@ args = parser.parse_args()
 
 
 
-logger_dir = os.path.join("logs", "{}_{}_{}".format(args.env_name, args.algo, args.model_suffix))
+logger_dir = os.path.join("logs", "{}_{}_{}".format(args.env_name, args.algo, args.suffix))
 if not os.path.exists(logger_dir):
     os.makedirs(logger_dir)
 logger = Logger(logger_dir)
@@ -128,7 +128,7 @@ policy_loss_list = []
 value_loss_list = []
 
 if args.resume_training:
-    end_str = "_{}_{}".format(args.env_name, args.model_suffix)
+    end_str = "_{}_{}".format(args.env_name, args.suffix)
     agent.load_model("models/ddpg_actor" + end_str, "models/ddpg_critic" + end_str)
 
 for i_episode in range(args.num_episodes):
@@ -158,8 +158,7 @@ for i_episode in range(args.num_episodes):
         memory.push(state, action, mask, next_state, reward)
 
         state = next_state
-        print("Episode: {}, total_numsteps: {}".format(i_episode, total_numsteps))
-
+        
         if len(memory) > args.batch_size:
             for _ in range(args.updates_per_step):
                 transitions = memory.sample(args.batch_size)
@@ -175,6 +174,7 @@ for i_episode in range(args.num_episodes):
         if done:
             break
 
+    print("Episode: {}, episode_reward: {}, total_numsteps: {}".format(i_episode, episode_reward, total_numsteps))
     rewards_train.append(episode_reward)
     logger.log_scalar_rl("reward/train", rewards_train, args.sliding_window_size, [i_episode, total_numsteps, updates])
     
@@ -207,7 +207,7 @@ for i_episode in range(args.num_episodes):
         print("Episode: {}, total numsteps: {}, reward: {}, average reward: {}".format(i_episode, total_numsteps, rewards_test[-1], np.mean(rewards_test[-10:])))
 
         logger.log_scalar_rl("reward/test", rewards_test, args.sliding_window_size, [i_episode, total_numsteps, updates])
-        agent.save_model(args.env_name, args.model_suffix)
+        agent.save_model(args.env_name, args.suffix)
 
         
 env.close()
