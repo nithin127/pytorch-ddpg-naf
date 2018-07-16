@@ -204,7 +204,7 @@ for i_episode in range(args.num_episodes):
                 break
 
         rewards_test.append(episode_reward)
-        print("Episode: {}, total numsteps: {}, reward: {}, average reward: {}".format(i_episode, total_numsteps, rewards_test[-1], np.mean(rewards_test[-10:])))
+        print("Episode: {}, total numsteps: {}, test_reward: {}, test_average reward: {}".format(i_episode, total_numsteps, rewards_test[-1], np.mean(rewards_test[-10:])))
 
         logger.log_scalar_rl("reward/test", rewards_test, args.sliding_window_size, [i_episode, total_numsteps, updates])
         agent.save_model(args.env_name, args.suffix)
