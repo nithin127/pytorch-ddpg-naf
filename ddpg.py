@@ -49,6 +49,7 @@ class Actor(nn.Module):
     def __init__(self, hidden_size, num_inputs, action_space, image_input):
         super(Actor, self).__init__()
         self.action_space = action_space
+        self.action_space_high = action_space.high
         self.image_input = image_input
         num_outputs = action_space.shape[0]
 
@@ -105,7 +106,15 @@ class Actor(nn.Module):
         x = self.ln2(x)
         x = F.relu(x)
         mu = F.tanh(self.mu(x))
+        mu.data = torch.tensor(self.norm(mu.data.numpy()))
         return mu
+
+    def norm(self, action):
+        action = (action + 1) / 2  # [-1, 1] => [0, 1]
+        action *= (self.action_space.high - self.action_space.low)
+        action += self.action_space.low
+        return action
+
 
 class Critic(nn.Module):
     def __init__(self, hidden_size, num_inputs, action_space, image_input):

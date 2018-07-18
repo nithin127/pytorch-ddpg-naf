@@ -6,3 +6,4 @@ xvfb.log
 script.sh
 slurm*.out
 logs
+visualise.sh

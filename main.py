@@ -13,11 +13,11 @@ from gym import wrappers
 
 import gym_duckietown
 from gym_duckietown.envs import SimpleSimEnv
+from gym_duckietown.wrappers import HeadingWrapper
 
 import torch
 from ddpg import DDPG
 from naf import NAF
-from normalized_actions import NormalizedActions
 from ounoise import OUNoise
 from param_noise import AdaptiveParamNoiseSpec, ddpg_distance_metric
 from replay_memory import ReplayMemory, Transition
@@ -71,7 +71,7 @@ if not os.path.exists(logger_dir):
     os.makedirs(logger_dir)
 logger = Logger(logger_dir)
 
-env = NormalizedActions(gym.make(args.env_name))
+env = HeadingWrapper(gym.make(args.env_name))
 env.seed(args.seed)
 
 if torch.cuda.is_available():
@@ -146,7 +146,7 @@ for i_episode in range(args.num_episodes):
     while True:
         action_noise = torch.Tensor(ounoise.noise()).to(device)
         action = agent.select_action(state, action_noise, param_noise)
-        next_state, reward, done, _ = env.step(action.cpu().numpy()[0])
+        next_state, reward, done, _ = env.step(action.numpy()[0])
         total_numsteps += 1
         episode_reward += reward
 
@@ -194,7 +194,7 @@ for i_episode in range(args.num_episodes):
         while True:
             action = agent.select_action(state)
 
-            next_state, reward, done, _ = env.step(action.cpu().numpy()[0])
+            next_state, reward, done, _ = env.step(action.numpy()[0])
             episode_reward += reward
 
             next_state = torch.Tensor([next_state]).to(device)
