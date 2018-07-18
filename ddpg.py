@@ -56,12 +56,15 @@ class Actor(nn.Module):
         if image_input:
             self.conv1 = nn.Conv2d(num_inputs[2], 32, 6, stride=3)
             self.conv1_drop = torch.nn.Dropout2d(p=0.2)
+            self.bn1 = nn.BatchNorm2d(32)
 
             self.conv2 = nn.Conv2d(32, 32, 4, stride=2)
             self.conv2_drop = torch.nn.Dropout2d(p=0.2)
+            self.bn2 = nn.BatchNorm2d(32)
 
             self.conv3 = nn.Conv2d(32, 32, 4, stride=2)
             self.conv3_drop = torch.nn.Dropout2d(p=0.2)
+            self.bn3 = nn.BatchNorm2d(32)
 
             self.linear1_drop = nn.Dropout(p=0.5)
             self.linear1 = nn.Linear(32 * 8 * 11, hidden_size)
@@ -81,16 +84,19 @@ class Actor(nn.Module):
         if self.image_input:
             inputs = inputs.permute((0,3,1,2))
             x = self.conv1(inputs)
+            x = self.bn1(x)
             #x = self.conv1_drop(x)
-            x = F.leaky_relu(nn.BatchNorm2d(32)(x))
+            x = F.leaky_relu(x)
 
             x = self.conv2(x)
+            x = self.bn2(x)
             #x = self.conv2_drop(x)
-            x = F.leaky_relu(nn.BatchNorm2d(32)(x))
+            x = F.leaky_relu(x)
 
             x = self.conv3(x)
+            x = self.bn3(x)
             #x = self.conv3_drop(x)
-            x = F.leaky_relu(nn.BatchNorm2d(32)(x))
+            x = F.leaky_relu(x)
             
             x = x.view(-1, 32 * 8 * 11)
 
