@@ -106,7 +106,7 @@ class Actor(nn.Module):
         x = self.ln2(x)
         x = F.relu(x)
         mu = F.tanh(self.mu(x))
-        mu.data = torch.tensor(self.norm(mu.data.numpy()))
+        mu.data = torch.tensor(self.norm(mu.cpu().data.numpy()))
         return mu
 
     def norm(self, action):
