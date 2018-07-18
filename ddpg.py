@@ -54,7 +54,7 @@ class Actor(nn.Module):
         num_outputs = action_space.shape[0]
 
         if image_input:
-            self.conv1 = nn.Conv2d(num_inputs[2], 32, 8, stride=2)
+            self.conv1 = nn.Conv2d(num_inputs[2], 32, 6, stride=3)
             self.conv1_drop = torch.nn.Dropout2d(p=0.2)
 
             self.conv2 = nn.Conv2d(32, 32, 4, stride=2)
@@ -63,19 +63,17 @@ class Actor(nn.Module):
             self.conv3 = nn.Conv2d(32, 32, 4, stride=2)
             self.conv3_drop = torch.nn.Dropout2d(p=0.2)
 
-            self.conv4 = nn.Conv2d(32, 32, 4, stride=1)
-
             self.linear1_drop = nn.Dropout(p=0.5)
-            self.linear1 = nn.Linear(32 * 9 * 14, hidden_size)
+            self.linear1 = nn.Linear(32 * 8 * 11, hidden_size)
         else:
             self.linear1 = nn.Linear(num_inputs[0], hidden_size)
 
         self.ln1 = nn.LayerNorm(hidden_size)
 
-        self.linear2 = nn.Linear(hidden_size, hidden_size)
-        self.ln2 = nn.LayerNorm(hidden_size)
+        self.linear2 = nn.Linear(hidden_size, int(hidden_size/2))
+        self.ln2 = nn.LayerNorm(int(hidden_size/2))
 
-        self.mu = nn.Linear(hidden_size, num_outputs)
+        self.mu = nn.Linear(int(hidden_size/2), num_outputs)
         self.mu.weight.data.mul_(0.1)
         self.mu.bias.data.mul_(0.1)
 
@@ -84,20 +82,17 @@ class Actor(nn.Module):
             inputs = inputs.permute((0,3,1,2))
             x = self.conv1(inputs)
             #x = self.conv1_drop(x)
-            x = F.leaky_relu(x)
+            x = F.leaky_relu(nn.BatchNorm2d(32)(x))
 
             x = self.conv2(x)
             #x = self.conv2_drop(x)
-            x = F.leaky_relu(x)
+            x = F.leaky_relu(nn.BatchNorm2d(32)(x))
 
             x = self.conv3(x)
             #x = self.conv3_drop(x)
-            x = F.leaky_relu(x)
-
-            x = self.conv4(x)
-            x = F.leaky_relu(x)
-
-            x = x.view(-1, 32 * 9 * 14)
+            x = F.leaky_relu(nn.BatchNorm2d(32)(x))
+            
+            x = x.view(-1, 32 * 8 * 11)
 
         x = self.linear1(x)
         x = self.ln1(x)
@@ -187,7 +182,7 @@ class DDPG(object):
         self.actor = Actor(hidden_size, self.obs_shape, self.action_space, image_input)
         self.actor_target = Actor(hidden_size, self.obs_shape, self.action_space, image_input)
         self.actor_perturbed = Actor(hidden_size, self.obs_shape, self.action_space, image_input)
-        self.actor_optim = Adam(self.actor.parameters(), lr=1e-4)
+        self.actor_optim = Adam(self.actor.parameters(), lr=1e-4*4, weight_decay=1e-3)
 
         self.critic = Critic(hidden_size, self.obs_shape, self.action_space, image_input)
         self.critic_target = Critic(hidden_size, self.obs_shape, self.action_space, image_input)
