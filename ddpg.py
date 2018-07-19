@@ -51,7 +51,7 @@ class Actor(nn.Module):
         self.action_space = action_space
         self.action_space_high = action_space.high
         self.image_input = image_input
-        num_outputs = action_space.shape[0]
+        num_outputs = action_space.shape[0] - 1 #Keeping the heading constant
 
         if image_input:
             self.conv1 = nn.Conv2d(num_inputs[2], 32, 6, stride=3)
@@ -107,8 +107,8 @@ class Actor(nn.Module):
         x = self.ln2(x)
         x = F.relu(x)
         mu = F.tanh(self.mu(x))
-        mu.data = torch.tensor(self.norm(mu.cpu().data.numpy()))
-        return mu
+        #mu.data = torch.tensor(self.norm(mu.cpu().data.numpy()))
+        return mu.cpu()
 
     def norm(self, action):
         action = (action + 1) / 2  # [-1, 1] => [0, 1]
@@ -122,8 +122,7 @@ class Critic(nn.Module):
         super(Critic, self).__init__()
         self.action_space = action_space
         self.image_input = image_input
-        num_outputs = action_space.shape[0]
-
+        
         if image_input:
             self.conv1 = nn.Conv2d(num_inputs[2], 32, 8, stride=2)
             self.conv1_drop = torch.nn.Dropout2d(p=0.2)

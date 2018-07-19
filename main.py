@@ -62,6 +62,8 @@ parser.add_argument('--suffix', default="",
                     help='To resume training or not')
 parser.add_argument('--sliding-window-size', type=int, default=30,
                     help='number of values to compute average over')    
+parser.add_argument('--heading-speed', type=float, default=0.7,
+                    help='We\'re assuming the heading speed to be constant, default is 0.7') 
 args = parser.parse_args()
 
 
@@ -71,7 +73,7 @@ if not os.path.exists(logger_dir):
     os.makedirs(logger_dir)
 logger = Logger(logger_dir)
 
-env = HeadingWrapper(gym.make(args.env_name))
+env = HeadingWrapper(SimpleSimEnv(map_name="small_loop"))
 env.seed(args.seed)
 
 if torch.cuda.is_available():
@@ -144,13 +146,13 @@ for i_episode in range(args.num_episodes):
 
     episode_reward = 0
     while True:
-        action_noise = torch.Tensor(ounoise.noise())
+        action_noise = torch.Tensor(ounoise.noise())[0]
         action = agent.select_action(state, action_noise, param_noise)
-        next_state, reward, done, _ = env.step(action.numpy()[0])
+        next_state, reward, done, _ = env.step(np.append(args.heading_speed, action.numpy()[0]))
         total_numsteps += 1
         episode_reward += reward
 
-        #action = torch.Tensor(action).to(device)
+        action = torch.Tensor(action).to(device)
         mask = torch.Tensor([not done]).to(device)
         next_state = torch.Tensor([next_state]).to(device)
         reward = torch.Tensor([reward]).to(device)
@@ -194,7 +196,7 @@ for i_episode in range(args.num_episodes):
         while True:
             action = agent.select_action(state)
 
-            next_state, reward, done, _ = env.step(action.numpy()[0])
+            next_state, reward, done, _ = env.step(np.append(args.heading_speed, action.numpy()[0]))
             episode_reward += reward
 
             next_state = torch.Tensor([next_state]).to(device)
