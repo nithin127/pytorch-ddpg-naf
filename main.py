@@ -149,6 +149,7 @@ for i_episode in range(args.num_episodes):
         action_noise = torch.Tensor(ounoise.noise())[0]
         action = agent.select_action(state, action_noise, param_noise)
         next_state, reward, done, _ = env.step(np.append(args.heading_speed, action.numpy()[0]))
+        # To do heading could use some noise
         total_numsteps += 1
         episode_reward += reward
 
